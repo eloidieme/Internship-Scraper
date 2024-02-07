@@ -1,0 +1,5 @@
+pytest
+bs4
+requests
+pandas
+schedule
