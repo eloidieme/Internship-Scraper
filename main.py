@@ -3,7 +3,7 @@ import time
 from src.scraper import SocGenScraper
 from utils.email_sender import EmailEngine
 from utils.database import DatabaseHandler
-from utils.processor import pandas_converter
+from src.processor import pandas_converter
 
 def run_work():
     sg = SocGenScraper()

@@ -1,8 +1,9 @@
 import requests
 import json
-from datetime import datetime, date
 from bs4 import BeautifulSoup
 import os
+
+from src.processor import Processor
 
 class SocGenScraper:
     def __init__(self, locations = ['La Defense, France', 'Paris, France'], categories = ['IT (Information Technology)', 'Banking operations processing', 'Innovation / Project / Organization', 'Corporate & Investment banking'], contracts = ['Internship']) -> None:
@@ -99,37 +100,6 @@ class SocGenScraper:
             "POST", self.url, headers=headers, data=payload)
 
         return response
-    
-    def get_relevant_data(self):
-        data = self.get_job_data().json()['Result']['Docs']
-        map_obj = map(lambda dic: {"id": dic["sourcestr4"],"date": dic['modified'], "titre": dic['title'], "lien": dic['resulturl'], "contrat": dic["sourcestr8"], "lieu": dic["sourcestr7"], "catégorie": dic["sourcestr10"]}, data)
-        return list(map_obj)
-
-    def filter_location(self, data):
-        filtered = list(filter(lambda d: d['lieu'] in self.locations, data))
-        return filtered
-
-    def filter_category(self, data):
-        filtered = list(filter(lambda d: d['catégorie'] in self.categories, data))
-        return filtered
-
-    def filter_contract(self, data):
-        filtered = list(filter(lambda d: d['contrat'] in self.contracts, data))
-        return filtered
-
-    def filter_date(self, data):
-        date_format = '%Y-%m-%d %H:%M:%S'
-        today = date.today()
-        filtered = list(filter(lambda d: abs(today - datetime.strptime(d['date'], date_format).date()).days < 14, data))
-        return filtered
-        
-    def get_filtered_data(self):
-        data = self.get_relevant_data()
-        data = self.filter_location(data)
-        data = self.filter_category(data)
-        data = self.filter_contract(data)
-        data = self.filter_date(data)
-        return data
 
     def get_offer_data(self, offer):
         data = requests.get(offer["lien"])
@@ -141,27 +111,84 @@ class SocGenScraper:
             "id": offer["id"],
             "date": offer["date"],
             "titre": offer["titre"],
+            "contrat": "Stage",
             "lien": offer["lien"],
             "lieu": offer["lieu"],
-            "categorie": offer["catégorie"],
+            "categorie": offer["categorie"],
             "debut": starting_date,
         }
     
+    def get_relevant_data(self):
+        data = self.get_job_data().json()['Result']['Docs']
+        map_obj = map(lambda dic: {"id": dic["sourcestr4"],"date": dic['modified'], "titre": dic['title'], "lien": dic['resulturl'], "contrat": dic["sourcestr8"], "lieu": dic["sourcestr7"], "categorie": dic["sourcestr10"]}, data)
+        return list(map_obj)
+    
     def get_processed_data(self):
-        data = self.get_filtered_data()
-        data = list(map(lambda offer: self.get_offer_data(offer), data))
-        return data
+        data = self.get_relevant_data()
+        filtered = Processor(data, self.locations, self.categories, self.contracts).get_filtered_data()
+        processed = list(map(lambda offer: self.get_offer_data(offer), filtered))
+        return processed
     
     def save_data(self):
-        with open(os.path.join(os.pardir,'json', 'data.json'), 'w') as file:
+        with open(os.path.join(os.pardir,'json', 'data_sg.json'), 'w') as file:
             json.dump(self.get_processed_data(), file)
 
-class HTMLScraper:
-    data = requests.get("https://jobs.ca-cib.com/offre-de-emploi/liste-offres.aspx")
-    content = data.content
-    soup = BeautifulSoup(content, 'html.parser')
-    relevant_data = list(map(lambda tag: {"lien" : f'https://jobs.ca-cib.com/{str(tag["href"])}', "titre" : str(tag.string)[2:].strip(' ').lstrip(' ')[:-2]},soup.findAll(name="a", attrs={"class": "ts-offer-card__title-link"})))
-    links = list(map(lambda tag: f'https://jobs.ca-cib.com/{str(tag["href"])}',soup.findAll(name="a", attrs={"class": "ts-offer-card__title-link"})))
+class CAScraper:
+    def __init__(self, locations = ['Montrouge'], categories = ['Types de métiers Crédit Agricole S.A. - Financement et Investissement', 'Types of Jobs - IT, Digital et Data'], contracts = ['Stage']) -> None:
+        self.url = "https://jobs.ca-cib.com/offre-de-emploi/liste-offres.aspx"
+        self.soup = None
+        self.locations = locations
+        self.categories = categories
+        self.contracts = contracts
 
-    #with open('ca.json', 'w') as fp:
-    #    json.dump(relevant_data, fp)
+    def get_offer_links(self, titles=False):
+        data = requests.get(self.url)
+        soup = BeautifulSoup(data.content, 'html.parser')
+        a_tags = soup.findAll(name="a", attrs={"class": "ts-offer-card__title-link"})
+        if titles:
+            return [{"lien": f'https://jobs.ca-cib.com/{str(tag["href"])}', "titre" : str(tag.string)[2:].strip(' ').lstrip(' ')[:-2]} for tag in a_tags]
+        else:
+            return [f'https://jobs.ca-cib.com/{str(tag["href"])}' for tag in a_tags]
+    
+    def get_offer_data(self, link):
+        data = requests.get(link)
+        soup = BeautifulSoup(data.content, 'html.parser')
+        title = soup.find(name="p", attrs={"id": "fldjobdescription_jobtitle"}).string
+        starting_date = soup.find(name="p", attrs={"id":"fldjobdescription_date1"})
+        if starting_date is None:
+            starting_date = "Non spécifié"
+        else:
+            starting_date = starting_date.string
+        ref = soup.find(name="div", attrs={"class":"ts-offer-page__reference"}).contents[-1].strip()
+        date = soup.find(name="div", attrs={"class":"ts-offer-page__maj-date"}).contents[-1].strip()
+        lieu = soup.find(name="p", attrs={"id": "fldlocation_joblocation"}).string.strip()
+        categorie = soup.find(name="p", attrs={"id": "fldjobdescription_primaryprofile"})
+        if categorie is None:
+            categorie = "Non spécifié"
+        else:
+            categorie = categorie.string
+        contrat = soup.find(name="p", attrs={"id": "fldjobdescription_contract"}).string
+        return {
+            "id": ref,
+            "date": date,
+            "titre": title,
+            "contrat": contrat,
+            "lien": link,
+            "lieu": lieu,
+            "categorie": categorie,
+            "debut": starting_date,
+        }
+    
+    def get_relevant_data(self):
+        links = self.get_offer_links()
+        data = list(map(lambda link: self.get_offer_data(link), links))
+        return data
+    
+    def get_processed_data(self):
+        data = self.get_relevant_data()
+        processed = Processor(data, self.locations, self.categories, self.contracts).get_filtered_data()
+        return processed
+
+    def save_data(self):
+        with open(os.path.join(os.pardir,'json', 'data_ca.json'), 'w') as file:
+            json.dump(self.get_processed_data(), file)
