@@ -157,4 +157,11 @@ class SocGenScraper:
             json.dump(self.get_processed_data(), file)
 
 class HTMLScraper:
-    pass
+    data = requests.get("https://jobs.ca-cib.com/offre-de-emploi/liste-offres.aspx")
+    content = data.content
+    soup = BeautifulSoup(content, 'html.parser')
+    relevant_data = list(map(lambda tag: {"lien" : f'https://jobs.ca-cib.com/{str(tag["href"])}', "titre" : str(tag.string)[2:].strip(' ').lstrip(' ')[:-2]},soup.findAll(name="a", attrs={"class": "ts-offer-card__title-link"})))
+    links = list(map(lambda tag: f'https://jobs.ca-cib.com/{str(tag["href"])}',soup.findAll(name="a", attrs={"class": "ts-offer-card__title-link"})))
+
+    #with open('ca.json', 'w') as fp:
+    #    json.dump(relevant_data, fp)
