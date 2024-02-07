@@ -34,20 +34,28 @@ class EmailEngine:
                 <body>
                     <p>Voici votre rapport quotidien de stages en finance:</p>
                     <ul>
-                        <li>
-                            <p>Société Générale</p>
-                            <ul>
         """
 
-        if len(self.data) == 0:
-            html_string += "Pas de nouvelles offres aujourd'hui."
+        for (key, value) in self.data.items():
+            head = f"""<li>
+                                <p>{key}</p>
+                                <ul>
+            """
 
-        for dic in self.data:
-            html_string += self.parse_entry(dic)
+            if len(value) == 0:
+                head += "Pas de nouvelles offres aujourd'hui."
 
-        html_string += """\
+            for dic in value:
+                head += self.parse_entry(dic)
+            
+            head += """\
                             </ul>
                         </li>
+            """
+
+            html_string += head 
+
+        html_string += """\
                     </ul>
                     <p>Bonne journée.</p>
                 </body>
