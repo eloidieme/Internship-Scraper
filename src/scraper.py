@@ -104,16 +104,6 @@ class SocGenScraper:
         data = self.get_job_data().json()['Result']['Docs']
         map_obj = map(lambda dic: {"id": dic["sourcestr4"],"date": dic['modified'], "titre": dic['title'], "lien": dic['resulturl'], "contrat": dic["sourcestr8"], "lieu": dic["sourcestr7"], "catégorie": dic["sourcestr10"]}, data)
         return list(map_obj)
-    
-    def save_raw_data(self, name):
-        data = self.get_job_data()
-        with open(os.path.join('json', name), "w") as file:
-            json.dump(data.json()['Result']['Docs'], file)
-
-    def save_relevant_data(self, name):
-        relevant = self.get_relevant_data()
-        with open(os.path.join('json', name), "w") as file:
-            json.dump(relevant, file)
 
     def filter_location(self, data):
         filtered = list(filter(lambda d: d['lieu'] in self.locations, data))
@@ -141,11 +131,6 @@ class SocGenScraper:
         data = self.filter_date(data)
         return data
 
-    def save_filtered_data(self, name):
-        filtered = self.get_filtered_data()
-        with open(os.path.join('json', name), "w") as file:
-            json.dump(filtered, file)
-
     def get_offer_data(self, offer):
         data = requests.get(offer["lien"])
         soup = BeautifulSoup(data.content, 'html.parser')
@@ -162,15 +147,14 @@ class SocGenScraper:
             "debut": starting_date,
         }
     
-    def get_final_data(self):
+    def get_processed_data(self):
         data = self.get_filtered_data()
         data = list(map(lambda offer: self.get_offer_data(offer), data))
         return data
     
-    def save_final_data(self, name):
-        final = self.get_final_data()
-        with open(os.path.join('json', name), "w") as file:
-            json.dump(final, file)
+    def save_data(self):
+        with open(os.path.join(os.pardir,'json', 'data.json'), 'w') as file:
+            json.dump(self.get_processed_data(), file)
 
 class HTMLScraper:
     pass

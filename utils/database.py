@@ -9,17 +9,6 @@ class DatabaseHandler:
         self.url = DATABASE_URL
         self.data = data
 
-    def create_connection(self):
-        conn = None
-        try:
-            conn = sqlite3.connect(self.url)
-            print(f"SQLite version: {sqlite3.version}")
-        except Error as e:
-            print(e)
-        finally:
-            if conn:
-                conn.close()
-
     def create_table(self):
         create_table_query = """ CREATE TABLE IF NOT EXISTS offers (
                                             id TEXT PRIMARY KEY,
@@ -63,7 +52,6 @@ class DatabaseHandler:
         return new_data
     
     def run(self):
-        self.create_connection()
         self.create_table()
         return self.insert_data()
 
